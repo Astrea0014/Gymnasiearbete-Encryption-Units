@@ -66,4 +66,25 @@
             public static Message FromBytes(byte[] bytes) => FromBytes(bytes, bytes.Length);
         }
     }
+
+    namespace Unit3
+    {
+        public enum MessageType : byte
+        {
+            ServerResponse,
+            Greeting,
+            Secret
+        }
+
+        public struct Message : IMessage<Message>
+        {
+            public const int MaxSize = 4096;
+
+            public MessageType MessageType;
+            public int EncryptedLength;
+            public byte[] Encrypted;
+
+            public readonly byte[] ToBytes() => [(byte)MessageType, ]
+        }
+    }
 }
