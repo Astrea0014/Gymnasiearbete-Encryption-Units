@@ -88,7 +88,7 @@ namespace Unit_X_Common
         /// </summary>
         public static class Unit
         {
-            public static readonly string PipeName = "Unit2Pipe";
+            public static readonly string PipeName = "Unit3Pipe";
             public static readonly string ServerName = UnitX.Unit.ServerName;
             public static readonly Encoding TextEncoding = UnitX.Unit.TextEncoding;
 
@@ -121,7 +121,7 @@ namespace Unit_X_Common
                 return encrypted;
             }
 
-            public static string DecryptString(byte[] encrypted)
+            public static string DecryptString(byte[] encrypted, int length)
             {
                 if (encrypted == null || encrypted.Length <= 0)
                     throw new ArgumentNullException(nameof(encrypted));
@@ -135,13 +135,30 @@ namespace Unit_X_Common
 
                     ICryptoTransform decryptor = aes.CreateDecryptor();
 
-                    using MemoryStream ms = new(encrypted);
+                    using MemoryStream ms = new(encrypted, 0, length);
                     using CryptoStream cs = new(ms, decryptor, CryptoStreamMode.Read);
                     using StreamReader sr = new(cs);
                     decrypted = sr.ReadToEnd();
                 }
 
                 return decrypted;
+            }
+
+            public static string FormatByteArray(byte[] bytes, int length)
+            {
+                string ret = "[";
+
+                for (int i = 0; i < length; i++)
+                {
+                    ret += $"0x{bytes[i]:X}";
+
+                    if (i == length - 1)
+                        ret += ']';
+                    else
+                        ret += ", ";
+                }
+
+                return ret;
             }
         }
     }

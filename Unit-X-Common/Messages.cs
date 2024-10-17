@@ -84,7 +84,18 @@
             public int EncryptedLength;
             public byte[] Encrypted;
 
-            public readonly byte[] ToBytes() => [(byte)MessageType, ]
+            public readonly byte[] ToBytes() => [(byte)MessageType, .. BitConverter.GetBytes(EncryptedLength), .. Encrypted];
+            public static Message FromBytes(byte[] bytes, int size)
+            {
+                return new Message()
+                {
+                    MessageType = (MessageType)bytes[0],
+                    EncryptedLength = BitConverter.ToInt32(bytes, 1),
+                    Encrypted = bytes[5..]
+                };
+            }
+
+            public static Message FromBytes(byte[] bytes) => FromBytes(bytes, bytes.Length);
         }
     }
 }
