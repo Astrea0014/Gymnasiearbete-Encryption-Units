@@ -1,4 +1,4 @@
-﻿using System.IO.Pipes;
+﻿using Unit_X_Common;
 using Unit_X_Common.Unit1;
 
 /* --- Unit 1 Client Side ---
@@ -6,50 +6,22 @@ using Unit_X_Common.Unit1;
  * For Unit 1, the server-client communication has no guarantee for data authenticity or privacy.
  */
 
-using (NamedPipeClientStream pipe = new(Unit.ServerName, Unit.PipeName, PipeDirection.InOut, PipeOptions.Asynchronous))
+new Unit1ClientRuntime().Start(Unit.ServerName, Unit.PipeName);
+class Unit1ClientRuntime : ClientRuntime<Message>
 {
-    pipe.Connect();
-
-    Console.WriteLine("Connected to pipe server.");
-
-    // Greeting the server and looking for a response.
+    public override Message GetGreetingMessage(string message) => new()
     {
-        Console.WriteLine("Sending greeting...");
+        MessageType = MessageType.Greeting,
+        Payload = Unit.TextEncoding.GetBytes(message)
+    };
 
-        await pipe.WriteAsync(new Message()
-        {
-            MessageType = MessageType.Greeting,
-            Payload = Unit.TextEncoding.GetBytes("Hello from Client!")
-        }.ToBytes());
-
-        byte[] bytes = new byte[Message.MaxSize];
-        int size = await pipe.ReadAsync(bytes);
-
-        Message message = Message.FromBytes(bytes, size);
-        Console.WriteLine("Response: " + Unit.TextEncoding.GetString(message.Payload));
-    }
-
-    // Sending the client's secret message and looking for a response.
+    public override Message GetSecretMessage(string message) => new()
     {
-        Console.WriteLine("Sending secret...");
+        MessageType = MessageType.Secret,
+        Payload = Unit.TextEncoding.GetBytes(message)
+    };
 
-        await pipe.WriteAsync(new Message()
-        {
-            MessageType = MessageType.Secret,
-            Payload = Unit.TextEncoding.GetBytes("Widthdraw $10 from my bank account. Bank password: 1234")
-        }.ToBytes());
+    public override void ProcessGreetingResponseMessage(Message message) => Console.WriteLine("Response: " + Unit.TextEncoding.GetString(message.Payload));
 
-        byte[] bytes = new byte[Message.MaxSize];
-        int size = await pipe.ReadAsync(bytes);
-
-        Message message = Message.FromBytes(bytes, size);
-        Console.WriteLine("Response: " + Unit.TextEncoding.GetString(message.Payload));
-    }
-
-    Console.WriteLine("Press any key to disconnect pipe...");
-    Console.ReadKey(); // Waiting for a key to be pressed.
+    public override void ProcessSecretResponseMessage(Message message) => Console.WriteLine("Response: " + Unit.TextEncoding.GetString(message.Payload));
 }
-
-// Once the client stream runs out of scope, its Dispose()
-// method will be called and the connection between the
-// pipe and the server will be severed.

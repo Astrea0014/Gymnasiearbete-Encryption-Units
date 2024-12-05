@@ -1,62 +1,38 @@
-﻿using System.IO.Pipes;
+﻿using Unit_X_Common;
 using Unit_X_Common.Unit3;
 
-/* --- Unit 2 Client Side ---
+/* --- Unit 3 Client Side ---
  * The client side of a local area network accessible intraprocess communication pipeline.
- * For Unit 2, the server-client communication is ciphered using a basic Caesar-cipher but features no guarantee for data authenticity.
+ * For Unit 3, the server-client communication is encrypted using a symmetric encryption algorithm (AES) but features no guarantee for data authenticity.
  */
 
-using (NamedPipeClientStream pipe = new(Unit.ServerName, Unit.PipeName, PipeDirection.InOut, PipeOptions.Asynchronous))
+new Unit3ClientRuntime().Start(Unit.ServerName, Unit.PipeName);
+class Unit3ClientRuntime : ClientRuntime<Message>
 {
-    pipe.Connect();
-
-    Console.WriteLine("Connected to pipe server.");
-
-    // Greeting the server and looking for a response.
+    public override Message GetGreetingMessage(string message) => new()
     {
-        Console.WriteLine("Sending greeting...");
+        MessageType = MessageType.Greeting,
+        EncryptedLength = 0,
+        Encrypted = Unit.TextEncoding.GetBytes(message)
+    };
 
-        await pipe.WriteAsync(new Message()
-        {
-            MessageType = MessageType.Greeting,
-            EncryptedLength = 0,
-            Encrypted = Unit.TextEncoding.GetBytes("Hello from Client!")
-        }.ToBytes());
-
-        byte[] bytes = new byte[Message.MaxSize];
-        int size = await pipe.ReadAsync(bytes);
-
-        Message message = Message.FromBytes(bytes, size);
-        Console.WriteLine("Response: " + Unit.TextEncoding.GetString(message.Encrypted));
-    }
-
-    // Sending the client's secret message and looking for a response.
+    public override Message GetSecretMessage(string message)
     {
-        Console.WriteLine("Sending secret...");
+        byte[] encrypted = Unit.EncryptString(message);
 
-        // Encrypting the message using the AES encryptor.
-        byte[] encrypted = Unit.EncryptString("Widthdraw $10 from my bank account. Bank password: 1234");
-
-        await pipe.WriteAsync(new Message()
+        return new Message()
         {
             MessageType = MessageType.Secret,
             EncryptedLength = encrypted.Length,
             Encrypted = encrypted
-        }.ToBytes());
-
-        byte[] bytes = new byte[Message.MaxSize];
-        int size = await pipe.ReadAsync(bytes);
-
-        Message message = Message.FromBytes(bytes, size);
-
-        Console.WriteLine("Response (encrypted): " + Unit.FormatByteArray(message.Encrypted, message.EncryptedLength));
-        Console.WriteLine("Response (decrypted): " + Unit.DecryptString(message.Encrypted, message.EncryptedLength));
+        };
     }
 
-    Console.WriteLine("Press any key to disconnect pipe...");
-    Console.ReadKey(); // Waiting for a key to be pressed.
-}
+    public override void ProcessGreetingResponseMessage(Message message) => Console.WriteLine("Response: " + Unit.TextEncoding.GetString(message.Encrypted));
 
-// Once the client stream runs out of scope, its Dispose()
-// method will be called and the connection between the
-// pipe and the server will be severed.
+    public override void ProcessSecretResponseMessage(Message message)
+    {
+        Console.WriteLine("Response (encrypted): " + UnitX.FormatByteArray(message.Encrypted, 0, message.EncryptedLength));
+        Console.WriteLine("Response (decrypted): " + Unit.DecryptString(message.Encrypted, message.EncryptedLength));
+    }
+}
