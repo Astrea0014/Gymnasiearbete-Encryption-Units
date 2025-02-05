@@ -51,7 +51,7 @@ namespace Unit_X_Common
             cts.Cancel();                                       // Cancel read task for redundancy.
 
             try { await readTask; }                             // Propagate any pending exceptions thrown in the task by awaiting it.
-            catch { }
+            catch (Exception e) { Console.WriteLine("Failed due to exception being thrown in communications task: " + e.Message); }
 
             cts.Dispose();
             pipe.Disconnect();
