@@ -38,11 +38,12 @@ namespace Unit_X_Common
             {
                 if (_workItems[workerIndex] is not null)
                 {
-                    log.Log("Received work item; calling HandleConnection");
+                    log.Log("Received work item; invoking HandleConnection");
                     using (_workItems[workerIndex])
                     {
                         HandleConnection(_workItems[workerIndex]!);
                         _workItems[workerIndex]!.Disconnect();
+                        _workItems[workerIndex] = null;
                     }
                     log.Log("Connection handled successfully.");
                     AcceptNewWork(workerIndex);
@@ -68,8 +69,13 @@ namespace Unit_X_Common
 
         public ThreadPool(int workerCount)
         {
+            IsRunning = true;
+
             log = new Logger();
             log.SetThreadContext("Main thread");
+
+            _workItems = new NamedPipeServerStream?[workerCount];
+            _queuedItems = [];
 
             _pool = new Thread[workerCount];
 
@@ -78,9 +84,6 @@ namespace Unit_X_Common
                 _pool[i] = new Thread(Worker);
                 _pool[i].Start(i);
             }
-
-            _workItems = new NamedPipeServerStream?[workerCount];
-            _queuedItems = [];
         }
 
         public void Stop() => IsRunning = false;
@@ -103,7 +106,7 @@ namespace Unit_X_Common
                 log.Log("Awaiting client connection...");
                 npss.WaitForConnection();
 
-                log.Log("Connection received! Passing to threadpool worker...");
+                log.Log("Connection established! Passing to threadpool worker...");
                 EnqueueWork(npss);
             }
         }

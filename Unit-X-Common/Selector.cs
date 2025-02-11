@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.Versioning;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Runtime.Versioning;
 
 namespace Unit_X_Common
 {
@@ -14,6 +9,7 @@ namespace Unit_X_Common
     {
         private readonly string _header;
         private readonly string _description;
+        private readonly int _redrawCursorRow;
 
         private void OnSelectServer() => new TServer().Start();
         private void OnSelectClient() => new TClient().Start();
@@ -51,14 +47,16 @@ namespace Unit_X_Common
         }
         private void Redraw()
         {
-            Console.SetCursorPosition(0, 3);
+            Console.SetCursorPosition(0, _redrawCursorRow);
             DrawSelection();
         }
 
-        public Selector(int unit, string description)
+        public Selector(int unit, IEnumerable<string> description)
         {
             _header = $"Welcome to unit test {unit}";
-            _description = description;
+            _description = string.Join('\n', description);
+            _redrawCursorRow = description.Count() + 1;
+
             _selectables = [
                 new Selectable()
                 {

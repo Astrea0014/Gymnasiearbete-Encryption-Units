@@ -14,6 +14,6 @@ namespace Unit_X_Common
         public string GetThreadContext() => _contexts[Environment.CurrentManagedThreadId];
         public void SetThreadContext(string name) => _contexts[Environment.CurrentManagedThreadId] = name;
 
-        public void Log(string message) => Console.WriteLine($"{(HasThreadContext() ? $"{GetThreadContext()}: " : "")}{message}");
+        public void Log(string message) => Console.WriteLine($"{(HasThreadContext() ? $"[{GetThreadContext()}] " : "")}{message}");
     }
 }

@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO.Pipes;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.IO.Pipes;
 
 namespace Unit_X_Common
 {
@@ -19,6 +14,7 @@ namespace Unit_X_Common
         public void Start()
         {
             log.SetThreadContext("Main thread");
+            log.Log($"Attempting to connect to server '{ServerName}'...");
 
             using NamedPipeClientStream npcs = new NamedPipeClientStream(ServerName, PipeName, PipeDirection.InOut);
             npcs.Connect();
