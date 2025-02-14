@@ -7,7 +7,7 @@ using Unit_X_Common;
 string[] description = [
     "In unit 4, the communication is completely unencrypted, but signed using a",
     "digital signature generated from an asymmetric algorithm.",
-    "This unit features no message privacy and strong messatge authenticity."
+    "This unit features no message privacy and strong message authenticity."
 ];
 
 new Selector<Unit4Server, Unit4Client>(4, description).Start();
@@ -24,12 +24,16 @@ class Unit4Server : ServerRuntime
         log.Log($"\tPublic key:  {RuntimeHelper.FormatArray(myRsa.ExportRSAPublicKey())}");
         log.Log($"\tPrivate key: {RuntimeHelper.FormatArray(myRsa.ExportRSAPrivateKey())}");
 
-        // Not announced because formally this information should be fetched from a CA,
-        // not from the client directly.
-
+        log.Log("Awaitng client public key...");
         byte[] clientKey = RuntimeHelper.ReadPipe(npss);
+
+        log.Log($"Received public key from client: {RuntimeHelper.FormatArray(clientKey)}");
         using RSA clientRsa = RSA.Create();
         clientRsa.ImportRSAPublicKey(clientKey, out int _);
+
+        log.Log("Sending public key to client...");
+        npss.Write(myRsa.ExportRSAPublicKey());
+        log.Log("Public key sent.");
 
         log.Log("Awaiting message from client...");
         byte[] text = RuntimeHelper.ReadPipe(npss);
@@ -51,8 +55,7 @@ class Unit4Server : ServerRuntime
 
         log.Log("Responding with signed message...");
 
-        npss.Write(myRsa.ExportRSAPublicKey());
-        byte[] myText = Encoding.UTF8.GetBytes("Hello from ");
+        byte[] myText = Encoding.UTF8.GetBytes($"Hello from {log.GetThreadContext()} on server!");
         npss.Write(myText);
         npss.Write(myRsa.SignData(myText, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1));
 
@@ -71,21 +74,24 @@ class Unit4Client : ClientRuntime
         log.Log($"\tPublic key:  {RuntimeHelper.FormatArray(myRsa.ExportRSAPublicKey())}");
         log.Log($"\tPrivate key: {RuntimeHelper.FormatArray(myRsa.ExportRSAPrivateKey())}");
 
+        log.Log("Sending public key to server...");
+        npcs.Write(myRsa.ExportRSAPublicKey());
+        log.Log("Public key sent.");
+
+        log.Log("Awaiting server public key...");
+        byte[] serverKey = RuntimeHelper.ReadPipe(npcs);
+
+        log.Log($"Received public key from client: {RuntimeHelper.FormatArray(clientKey)}");
+        using RSA serverRsa = RSA.Create();
+        serverRsa.ImportRSAPublicKey(serverKey, out int _);
+
         log.Log("Sending signed message to server...");
 
-        npcs.Write(myRsa.ExportRSAPublicKey());
-        byte[] myText = Encoding.UTF8.GetBytes("Hello from ");
+        byte[] myText = Encoding.UTF8.GetBytes($"Hello from client!");
         npcs.Write(myText);
         npcs.Write(myRsa.SignData(myText, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1));
 
         log.Log("Message sent.");
-
-        // Not announced because formally this information should be fetched from a CA,
-        // not from the client directly.
-
-        byte[] serverKey = RuntimeHelper.ReadPipe(npcs);
-        using RSA serverRsa = RSA.Create();
-        serverRsa.ImportRSAPublicKey(serverKey, out int _);
 
         log.Log("Awaiting response from server...");
         byte[] text = RuntimeHelper.ReadPipe(npcs);
