@@ -24,7 +24,7 @@ class Unit4Server : ServerRuntime
         log.Log($"\tPublic key:  {RuntimeHelper.FormatArray(myRsa.ExportRSAPublicKey())}");
         log.Log($"\tPrivate key: {RuntimeHelper.FormatArray(myRsa.ExportRSAPrivateKey())}");
 
-        log.Log("Awaitng client public key...");
+        log.Log("Awaiting client public key...");
         byte[] clientKey = RuntimeHelper.ReadPipe(npss);
 
         log.Log($"Received public key from client: {RuntimeHelper.FormatArray(clientKey)}");
@@ -81,7 +81,7 @@ class Unit4Client : ClientRuntime
         log.Log("Awaiting server public key...");
         byte[] serverKey = RuntimeHelper.ReadPipe(npcs);
 
-        log.Log($"Received public key from client: {RuntimeHelper.FormatArray(clientKey)}");
+        log.Log($"Received public key from server: {RuntimeHelper.FormatArray(serverKey)}");
         using RSA serverRsa = RSA.Create();
         serverRsa.ImportRSAPublicKey(serverKey, out int _);
 
