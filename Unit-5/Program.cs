@@ -1,11 +1,12 @@
 ﻿using System.IO.Pipes;
 using System.Runtime.Versioning;
 using System.Security.Cryptography;
+using System.Text;
 using Unit_X_Common;
 
 string[] description = [
     "In unit 5, the communication is end-to-end encrypted using an",
-    "asymmetric encryption algorithm.",
+    "asymmetric encryption algorithm (RSA).",
     "This unit features strong message privacy and weak message authenticity."
 ];
 
@@ -33,6 +34,17 @@ class Unit5Server : ServerRuntime
         log.Log("Sending public key to client...");
         npss.Write(myRsa.ExportRSAPublicKey());
         log.Log("Public key sent.");
+
+        log.Log("Awaiting encrypted message from client...");
+        byte[] text = RuntimeHelper.ReadPipe(npss);
+
+        log.Log("Received message from client");
+        log.Log($"\tEncrypted: {RuntimeHelper.FormatArray(text)}");
+        log.Log($"\tDecrypted: {Unit5.DecryptText(myRsa, text)}");
+
+        log.Log("Respionding with encrypted message...");
+        npss.Write(Unit5.EncryptText(clientRsa, $"Hello from {log.GetThreadContext()} on server!"));
+        log.Log("Response sent.");
     }
 }
 class Unit5Client : ClientRuntime
@@ -57,7 +69,29 @@ class Unit5Client : ClientRuntime
         log.Log($"Received public key from server: {RuntimeHelper.FormatArray(serverKey)}");
         using RSA serverRsa = RSA.Create();
         serverRsa.ImportRSAPublicKey(serverKey, out int _);
+
+        log.Log("Sending encrypted message to server...");
+        npcs.Write(Unit5.EncryptText(serverRsa, "Hello from client!"));
+        log.Log("Message sent.");
+
+        log.Log("Awaiting encrypted response from server...");
+        byte[] text = RuntimeHelper.ReadPipe(npcs);
+
+        log.Log("Received encrypted response from server");
+        log.Log($"\tEncrypted: {RuntimeHelper.FormatArray(text)}");
+        log.Log($"\tDecrypted: {Unit5.DecryptText(myRsa, text)}");
     }
+}
+
+static class Unit5
+{
+    public static byte[] EncryptText(RSA rsa, string text)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(text);
+        return rsa.Encrypt(Encoding.UTF8.GetBytes(text), RSAEncryptionPadding.Pkcs1);
+    }
+    public static string DecryptText(RSA rsa, byte[] encrypted)
+        => Encoding.UTF8.GetString(rsa.Decrypt(encrypted, RSAEncryptionPadding.Pkcs1));
 }
 
 [SupportedOSPlatform("windows")]

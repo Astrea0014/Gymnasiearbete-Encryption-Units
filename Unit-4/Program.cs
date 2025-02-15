@@ -87,7 +87,7 @@ class Unit4Client : ClientRuntime
 
         log.Log("Sending signed message to server...");
 
-        byte[] myText = Encoding.UTF8.GetBytes($"Hello from client!");
+        byte[] myText = Encoding.UTF8.GetBytes("Hello from client!");
         npcs.Write(myText);
         npcs.Write(myRsa.SignData(myText, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1));
 
