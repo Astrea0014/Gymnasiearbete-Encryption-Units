@@ -3,62 +3,112 @@ using System.Runtime.Versioning;
 
 namespace Unit_X_Common
 {
-    public abstract class ServerRuntime<TMessage> where TMessage : IMessage<TMessage>
+    public abstract class ThreadPool
     {
-        [SupportedOSPlatform("windows")]
-        public async void Start(string pipeName)
+        private readonly Thread[] _pool;
+        private readonly NamedPipeServerStream?[] _workItems;
+        private readonly Queue<NamedPipeServerStream> _queuedItems;
+
+        protected Logger log;
+
+        private int GetFirstFreeWorkerIndex()
         {
-            using NamedPipeServerStream pipe = new(pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Message, PipeOptions.Asynchronous);
-            Console.WriteLine($"Created instance of named pipe '{pipeName}'");
-
-            pipe.WaitForConnection();
-            Console.WriteLine($"Connected to pipe client. Awaiting contact...");
-
-            CancellationTokenSource cts = new();
-            CancellationToken ct = cts.Token;
-
-            Task readTask = Task.Run(async () =>
-            {
-                ct.ThrowIfCancellationRequested();
-
-                while (!ct.IsCancellationRequested)
-                {
-                    byte[] bytes = new byte[UnitX.MaximumMessageSize];
-                    int size = await pipe.ReadAsync(bytes, ct);             // Call to PipeStream.ReadAsync is awaited until
-                                                                            // either a message is sent through the pipe, or
-                                                                            // the operation is cancelled.
-                    TMessage message = TMessage.FromBytes(bytes, size);
-                    LogIncomingMessage(message);
-
-                    switch (message.MessageType)
-                    {
-                        case MessageType.Greeting:
-                            TMessage greeting = GetGreetingResponseMessage("Hello from Server!");
-                            Console.WriteLine("Greeting the client back...");
-                            await pipe.WriteAsync(greeting.ToBytes(), ct);
-                            break;
-                        case MessageType.Secret:
-                            TMessage secret = GetSecretResponseMessage(message, "Widthdrew $10 from your bank account with password: 1234");
-                            Console.WriteLine("Updating the client about their requested task...");
-                            await pipe.WriteAsync(secret.ToBytes(), ct);
-                            break;
-                    }
-                }
-            }, ct);
-
-            while (pipe.IsConnected && !readTask.IsCompleted) ; // Wait for the pipe client to disconnect or for the task to stop.
-
-            cts.Cancel();                                       // Cancel read task for redundancy.
-
-            try { await readTask; }                             // Propagate any pending exceptions thrown in the task by awaiting it.
-            catch (Exception e) { Console.WriteLine("Failed due to exception being thrown in communications task: " + e.Message); }
-
-            cts.Dispose();
-            pipe.Disconnect();
+            for (int i = 0; i < _workItems.Length; i++)
+                if (_workItems[i] == null)
+                    return i;
+            return -1;
         }
 
-        public abstract void LogIncomingMessage(TMessage message);
-        public abstract TMessage GetGreetingResponseMessage(string message);
-        public abstract TMessage GetSecretResponseMessage(TMessage incoming, string outgoing);
+        private void AcceptNewWork(int workerIndex)
+        {
+            if (_queuedItems.Count == 0)
+                return;
+            if (_workItems[workerIndex] == null)
+                return;
+
+            _workItems[workerIndex] = _queuedItems.Dequeue();
+        }
+
+        private void Worker(object? param)
+        {
+            int workerIndex = param as int? ?? throw new ArgumentNullException(nameof(param));
+            log.SetThreadContext($"Worker #{workerIndex}");
+
+            while (IsRunning)
+            {
+                if (_workItems[workerIndex] is not null)
+                {
+                    log.Log("Received work item; invoking HandleConnection");
+                    using (_workItems[workerIndex])
+                    {
+                        HandleConnection(_workItems[workerIndex]!);
+                        _workItems[workerIndex]!.Disconnect();
+                        _workItems[workerIndex] = null;
+                    }
+                    log.Log("Connection handled successfully.");
+                    AcceptNewWork(workerIndex);
+                }
+
+                Thread.Sleep(50);
+            }
+        }
+
+        protected void EnqueueWork(NamedPipeServerStream npss)
+        {
+            int i = GetFirstFreeWorkerIndex();
+
+            if (i != -1)
+                _workItems[i] = npss;
+            else
+                _queuedItems.Enqueue(npss);
+        }
+
+        protected abstract void HandleConnection(NamedPipeServerStream npss);
+
+        public bool IsRunning { get; private set; }
+
+        public ThreadPool(int workerCount)
+        {
+            IsRunning = true;
+
+            log = new Logger();
+            log.SetThreadContext("Main thread");
+
+            _workItems = new NamedPipeServerStream?[workerCount];
+            _queuedItems = [];
+
+            _pool = new Thread[workerCount];
+
+            for (int i = 0; i < workerCount; i++)
+            {
+                _pool[i] = new Thread(Worker);
+                _pool[i].Start(i);
+            }
+        }
+
+        public void Stop() => IsRunning = false;
+    }
+
+    public abstract class ServerRuntime() : ThreadPool(32), IPipeRuntime
+    {
+        public abstract string PipeName { get; }
+
+        [SupportedOSPlatform("windows")]
+        public void Start()
+        {
+            log.SetThreadContext("Main thread");
+            log.Log("Started server");
+
+            while (IsRunning)
+            {
+                NamedPipeServerStream npss = new NamedPipeServerStream(PipeName, PipeDirection.InOut, NamedPipeServerStream.MaxAllowedServerInstances, PipeTransmissionMode.Message);
+
+                log.Log("Awaiting client connection...");
+                npss.WaitForConnection();
+
+                log.Log("Connection established! Passing to threadpool worker...");
+                EnqueueWork(npss);
+            }
+        }
     }
 }

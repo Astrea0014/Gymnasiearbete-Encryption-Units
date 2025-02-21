@@ -2,52 +2,25 @@
 
 namespace Unit_X_Common
 {
-    public abstract class ClientRuntime<TMessage> where TMessage : IMessage<TMessage>
+    public abstract class ClientRuntime() : IPipeClientRuntime
     {
-        public async void Start(string pipeServer, string pipeName)
+        protected readonly Logger log = new Logger();
+
+        public string ServerName => ".";
+        public abstract string PipeName { get; }
+
+        protected abstract void HandleConnection(NamedPipeClientStream npcs);
+
+        public void Start()
         {
-            using NamedPipeClientStream pipe = new(pipeServer, pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+            log.SetThreadContext("Main thread");
+            log.Log($"Attempting to connect to server '{ServerName}'...");
 
-            pipe.Connect();
-            Console.WriteLine($"Connected to server instance of pipe '{pipeName}' on device '{pipeServer}'!");
+            using NamedPipeClientStream npcs = new NamedPipeClientStream(ServerName, PipeName, PipeDirection.InOut);
+            npcs.Connect();
 
-            // Greeting the server and looking for a response.
-            {
-                Console.WriteLine("Sending greeting...");
-
-                await pipe.WriteAsync(GetGreetingMessage("Hello from Client!").ToBytes());
-
-                byte[] bytes = new byte[UnitX.MaximumMessageSize];
-                int size = await pipe.ReadAsync(bytes);
-
-                TMessage message = TMessage.FromBytes(bytes, size);
-                ProcessGreetingResponseMessage(message);
-            }
-
-            // Sending the client's secret message and looking for a response.
-            {
-                Console.WriteLine("Sending secret...");
-
-                await pipe.WriteAsync(GetSecretMessage("Widthdraw $10 from my bank account. Bank password: 1234").ToBytes());
-
-                byte[] bytes = new byte[UnitX.MaximumMessageSize];
-                int size = await pipe.ReadAsync(bytes);
-
-                TMessage message = TMessage.FromBytes(bytes, size);
-                ProcessSecretResponseMessage(message);
-            }
-
-            Console.WriteLine("Press any key to exit...");
-            Console.ReadKey();
-
-            await pipe.DisposeAsync();  // Disposes of the instance and severs the connection between this
-                                        // client and its server counterpart.
+            log.Log("Connected to server; passing instance to handler.");
+            HandleConnection(npcs);
         }
-
-        public abstract TMessage GetGreetingMessage(string message);
-        public abstract void ProcessGreetingResponseMessage(TMessage message);
-
-        public abstract TMessage GetSecretMessage(string message);
-        public abstract void ProcessSecretResponseMessage(TMessage message);
     }
 }
